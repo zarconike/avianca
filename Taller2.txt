@@ -1,1 +1,384 @@
+---- SE CREA UNA TABLA QUE ALMACENA LOS ESTADOS DE LOS AVIONES
+CREATE TABLE STATE_AIRPLANE(ID NUMBER GENERATED ALWAYS AS IDENTITY, STATE VARCHAR2(100) NOT NULL);
+ALTER TABLE STATE_AIRPLANE ADD CONSTRAINT PK_STATE_AIRPLANE
+PRIMARY KEY (ID);
+
+--- SE AGREGA UNA NUEVA COLUMNA A LOS AVIONES PARA SOLUCIONAR EL LA NUEVA IMPLEMENTACION DE LA LOGICA QUE SE CAMBIO SEGUN NUMERAL A
+ALTER TABLE ENROLLMENT ADD STATE_AIRPLANE_ID INT NULL;
+
+--- SE AGREGA UNA NUEVA COLUMNA A LOS AVIONES PARA SOLUCIONAR EL LA NUEVA IMPLEMENTACION DE LA LOGICA QUE SE CAMBIO SEGUN NUMERAL B
+ALTER TABLE ENROLLMENT ADD AIRPORT_ID INT NULL;
+
+------- SE AGREGA UNA NUEVA COLUMNA A LOS AVIONES PARA SOLUCIONAR EL LA NUEVA IMPLEMENTACION DE LA LOGICA QUE SE CAMBIO SEGUN NUMERAL C
+CREATE TABLE STATE_AIRPLANE_CONFIRMATION(ID NUMBER GENERATED ALWAYS AS IDENTITY, STATE VARCHAR2(100) NOT NULL);
+ALTER TABLE STATE_AIRPLANE_CONFIRMATION ADD CONSTRAINT PK_STATE_AIRPLANE_CONFIRMATION
+PRIMARY KEY (ID);
+
+ALTER TABLE CONFIRMED_FLIGHTS ADD STATE_AIRPLANE_CONFIRMATION_ID INT NULL;
+
+
+--- SOLUCION PUNTO 1
+
+
+CREATE OR REPLACE VIEW AIRPLANE_AIRPORT_DEPARTURE
+AS 
+
+SELECT EN.REGISTRATION, EN.SERIAL_NUMBER, CF.ID CONFIRMATION_ID, AR.AIRPORT_ORIGIN_ID, EN.CHAIRS, DURATION_REAL, TIME_ESTIMATE_DEPARTURE
+FROM CONFIRMED_FLIGHTS  CF INNER JOIN  ROUTE_ITINERARY RI ON CF.ID = RI.CONFIRMED_FLIGHTS_ID
+INNER JOIN AIRPORT_ROUTES AR ON RI.AIRPORT_ROUTES_ID = AR.ID
+INNER JOIN ENROLLMENT EN ON AR.AIRPORT_ORIGIN_ID =  EN.AIRPORT_ID
+WHERE CF.STATE_AIRPLANE_CONFIRMATION_ID = 6 AND (TIME_ESTIMATE_DEPARTURE - interval '2' HOUR) > SYSDATE;
+
+
+SOLUCION PUNTO 2
+
+create or replace PROCEDURE Asignar_Tripulacion_Vuelo 
+AS
+
+    BEGIN 
+        DECLARE CONFIRMACION_ID AIRPLANE_AIRPORT_DEPARTURE.CONFIRMATION_ID%TYPE := 0;
+                PILOTO_ID EMPLOYEE.ID%TYPE := 0;
+                COPILOTO_ID EMPLOYEE.ID%TYPE:= 0;
+                CIUDAD_ID AIRPORT.CITY_ID%TYPE := 0;
+                NUMERO_VUELO AIRPLANE_AIRPORT_DEPARTURE.REGISTRATION%TYPE := NULL;
+                TOTAL_ASIENTOS AIRPLANE_AIRPORT_DEPARTURE.CHAIRS%TYPE := 0;
+                TOTAL_DURATION AIRPLANE_AIRPORT_DEPARTURE.DURATION_REAL%TYPE := 0;
+                FECHA_ESTIMADA_SALIDA AIRPLANE_AIRPORT_DEPARTURE.TIME_ESTIMATE_DEPARTURE%TYPE := NULL;
+                CONT_CAPA_853 NUMBER:= 0;
+                TYPE temp_table_type IS TABLE OF INFORMATION_EMPLOYEES%ROWTYPE
+                INDEX BY BINARY_INTEGER; 
+                AUX_VUELO temp_table_type;
+                TOTAL_AAD INT := 0;
+                TOTAL_PILOTO INT := 0;
+                TOTAL_COPILOTO INT := 0;
+                TOTAL_TRIPU INT := 0;
+         
+        BEGIN
+            
+            SELECT COUNT(*) INTO TOTAL_AAD
+            FROM  AIRPLANE_AIRPORT_DEPARTURE;
+            
+            IF (TOTAL_AAD >0)
+            THEN
+            
+                        SELECT  NVL(CHAIRS,0),NVL(DURATION_REAL,0), NVL(CONFIRMATION_ID,0),NVL(TIME_ESTIMATE_DEPARTURE,SYSDATE), NVL(REGISTRATION,'') INTO TOTAL_ASIENTOS, TOTAL_DURATION, CONFIRMACION_ID,FECHA_ESTIMADA_SALIDA, NUMERO_VUELO
+                        FROM AIRPLANE_AIRPORT_DEPARTURE
+                        FETCH FIRST 1 ROWS ONLY;
+                                             
+                        DBMS_OUTPUT.PUT_LINE(TOTAL_ASIENTOS || TOTAL_DURATION || CONFIRMACION_ID ); 
+                                                
+                        IF ((FECHA_ESTIMADA_SALIDA - interval '3' HOUR) > SYSDATE OR FECHA_ESTIMADA_SALIDA = NULL)
+                        THEN
+                        
+                                SELECT CITY_ID INTO CIUDAD_ID
+                                FROM AIRPORT
+                                WHERE ID = (SELECT  AIRPORT_ORIGIN_ID
+                                            FROM AIRPLANE_AIRPORT_DEPARTURE
+                                            FETCH FIRST 1 ROWS ONLY);
+                                
+                                DBMS_OUTPUT.PUT_LINE('ciudad');          
+                                DBMS_OUTPUT.PUT_LINE(CIUDAD_ID); 
+                                              
+                                ---ENCONTRANDO EL PILOTO A ASIGNAR  
+                                                                
+                                SELECT COUNT(*) INTO TOTAL_PILOTO
+                                FROM INFORMATION_EMPLOYEES
+                                WHERE TYPE = 'PILOTO' AND STATE = 'ACTIVO' AND REST_HOURS_LAS_FLIGHT >= 2 
+                                AND CITY_LOCATION_ID = CIUDAD_ID ;
+                                
+                                IF (TOTAL_PILOTO> 0)
+                                THEN                                
+                                  SELECT ID INTO PILOTO_ID
+                                  FROM INFORMATION_EMPLOYEES
+                                  WHERE TYPE = 'PILOTO' AND STATE = 'ACTIVO' AND REST_HOURS_LAS_FLIGHT >= 2 
+                                  AND CITY_LOCATION_ID = CIUDAD_ID 
+                                  FETCH FIRST 1 ROWS ONLY;
+                                ELSE 
+                                  DBMS_OUTPUT.PUT_LINE('No hay pilotos para asignar'); 
+                                END IF;
+                                
+                                DBMS_OUTPUT.PUT_LINE('piloto');                                                                                               
+                                DBMS_OUTPUT.PUT_LINE(PILOTO_ID); 
+                                
+                                 ------encontrando copiloto
+                                 
+                                SELECT COUNT(*) INTO TOTAL_COPILOTO
+                                FROM INFORMATION_EMPLOYEES
+                                WHERE TYPE = 'COPILOTO' AND STATE = 'ACTIVO' AND REST_HOURS_LAS_FLIGHT >= 2 
+                                AND CITY_LOCATION_ID = CIUDAD_ID ;
+                                 
+                                IF (TOTAL_COPILOTO > 0)
+                                THEN                                 
+                                    SELECT ID INTO COPILOTO_ID
+                                    FROM INFORMATION_EMPLOYEES
+                                    WHERE TYPE = 'COPILOTO' AND STATE = 'ACTIVO' AND REST_HOURS_LAS_FLIGHT >= 2 
+                                    AND CITY_LOCATION_ID = CIUDAD_ID 
+                                    FETCH FIRST 1 ROWS ONLY;
+                                ELSE 
+                                  DBMS_OUTPUT.PUT_LINE('No hay copilotos para asignar'); 
+                                END IF;
+                                 
+                                DBMS_OUTPUT.PUT_LINE('copiloto');                                                                                                
+                                DBMS_OUTPUT.PUT_LINE(COPILOTO_ID);
+                                
+                                   ------encontrando AUXILIADRES DE VUELO
+                                
+                                SELECT COUNT(*) INTO TOTAL_TRIPU
+                                FROM INFORMATION_EMPLOYEES
+                                WHERE TYPE = 'AUXILIAR DE VUELO' AND STATE = 'ACTIVO' AND REST_HOURS_LAS_FLIGHT >= 2 
+                                AND CITY_LOCATION_ID = CIUDAD_ID ;
+                                
+                                IF (TOTAL_TRIPU > 0)
+                                THEN
+                                  DBMS_OUTPUT.PUT_LINE('INGRESO');
+                                  SELECT * BULK COLLECT INTO AUX_VUELO 
+                                  FROM INFORMATION_EMPLOYEES
+                                  WHERE TYPE = 'AUXILIAR DE VUELO' AND STATE = 'ACTIVO' AND REST_HOURS_LAS_FLIGHT >= 2 
+                                  AND CITY_LOCATION_ID = CIUDAD_ID ;
+                                
+                                ELSE
+                                  DBMS_OUTPUT.PUT_LINE('No hay ni un solo auxiliar de vuelo para asignar');
+                                END IF;
+                                
+                                IF (TOTAL_PILOTO >0 OR TOTAL_COPILOTO >0 OR TOTAL_TRIPU > 0)
+                                THEN
+                                     DBMS_OUTPUT.PUT_LINE('INGRESO dos');
+                                    IF (TOTAL_ASIENTOS >= 19 AND TOTAL_ASIENTOS < 50)
+                                    THEN   
+                                    DBMS_OUTPUT.PUT_LINE('uno' ); 
+                                        FOR indx IN 1 .. 1 
+                                         LOOP
+                                              INSERT INTO ASSIGNED_CREW (CONFIRMED_FLIGHTS_ID, CREW_ID) VALUES (1, AUX_VUELO(indx).ID) ;                   
+                                         END LOOP;             
+                                    END IF;
+                           
+                                    IF (TOTAL_ASIENTOS >= 50 AND TOTAL_ASIENTOS <= 100)
+                                    THEN 
+                                       DBMS_OUTPUT.PUT_LINE('dos' ); 
+                                        IF (AUX_VUELO.COUNT >= 2)
+                                        THEN
+                                          FOR indx IN 1 .. 2 
+                                           LOOP
+                                                INSERT INTO ASSIGNED_CREW (CONFIRMED_FLIGHTS_ID, CREW_ID) VALUES (1, AUX_VUELO(indx).ID) ;                   
+                                           END LOOP;  
+                                        ELSE
+                                          DBMS_OUTPUT.PUT_LINE('No hay suficiente tripulacion para el vuelo. Solo hay' || AUX_VUELO.COUNT);
+                                        END IF;
+                                    END IF;
+                                    
+                                    IF (TOTAL_ASIENTOS > 100 AND TOTAL_ASIENTOS <= 180)
+                                    THEN
+                                       DBMS_OUTPUT.PUT_LINE('tres' ); 
+                                        IF (AUX_VUELO.COUNT >= 4)
+                                        THEN
+                                          FOR indx IN 1 .. 4 
+                                           LOOP
+                                                INSERT INTO ASSIGNED_CREW (CONFIRMED_FLIGHTS_ID, CREW_ID) VALUES (1, AUX_VUELO(indx).ID) ;                   
+                                           END LOOP;  
+                                        ELSE
+                                          DBMS_OUTPUT.PUT_LINE('No hay suficiente tripulacion para el vuelo. Solo hay' || AUX_VUELO.COUNT);
+                                        END IF;
+                                           
+                                    END IF;
+                                    
+                                    IF (TOTAL_ASIENTOS > 180 AND TOTAL_ASIENTOS <= 853)
+                                    THEN
+                                         DBMS_OUTPUT.PUT_LINE('cuatro' ); 
+                                        IF (TOTAL_DURATION >=6)
+                                        THEN
+                                          CONT_CAPA_853 := 19;
+                                        ELSE
+                                          CONT_CAPA_853 := 18;
+                                        END IF;
+                                        
+                                        IF (AUX_VUELO.COUNT >= CONT_CAPA_853)
+                                        THEN
+                                          FOR indx IN 1 .. CONT_CAPA_853
+                                           LOOP
+                                                INSERT INTO ASSIGNED_CREW (CONFIRMED_FLIGHTS_ID, CREW_ID) VALUES (1, AUX_VUELO(indx).ID) ;                   
+                                           END LOOP;  
+                                        ELSE
+                                          DBMS_OUTPUT.PUT_LINE('No hay suficiente tripulacion para el vuelo. Solo hay' || AUX_VUELO.COUNT);
+                                        END IF;
+                                           
+                                    END IF;
+                                    
+                                    UPDATE CONFIRMED_FLIGHTS 
+                                    SET PILOT_ID =  PILOTO_ID, COP_PILOT_ID = COPILOTO_ID, STATE_AIRPLANE_CONFIRMATION_ID = 4, ENROLLMENT_REGISTRATION = NUMERO_VUELO
+                                    WHERE ID = CONFIRMACION_ID;
+                                    
+                                    COMMIT;
+                                
+                                ELSE
+                                  DBMS_OUTPUT.PUT_LINE('Cuando no hay al menos un piloto o copiloto o auxiliares de vuelo, no se puede asignar tripulacion');
+                                END IF;
+                        ELSE
+                          DBMS_OUTPUT.PUT_LINE('Al vuelo le faltan menos de 5 horas para su salida. Ya no se puede asignar tripulacion');
+                        END IF;
+          
+           ELSE
+              DBMS_OUTPUT.PUT_LINE('El vuelo no esta programado o le faltan menos de 5 horas.');
+           END IF;  
+                                                                                                                                                    
+       END;
+                                  
+    END;
+
+
+--CREACION DE VISTA DENTRO DEL PROCEDIMIENTO ANTERIOR
+
+
+
+CREATE OR REPLACE VIEW INFORMATION_EMPLOYEES
+AS 
+
+SELECT EMP.ID, EMPT.TYPE, EMS.STATE,EMP.REST_HOURS_LAS_FLIGHT, EMP.CITY_LOCATION_ID
+from EMPLOYEE EMP INNER JOIN EMPLOYEES_TYPE EMPT ON EMP.EMPLOYEE_TYPE_ID = EMPT."ID"
+                                INNER JOIN EMPLOYEE_STATE EMS ON EMP.STATE_ID = EMS."ID"
+
+
+--------SOLUCION PUNTO 3
+
+create or replace PROCEDURE Realizar_RegistroConfirmacion_Pasajeros (ID_CONFIRMED_FLIGHTS NUMBER, ID_PASSANGER NUMBER, ID_TYPE_CHAIRS NUMBER)
+AS
+
+    BEGIN 
+       
+       DECLARE  TOTAL_ASIENTOS ENROLLMENT.CHAIRS%TYPE := 0;
+                TOTAL_PASAJEROS CONFIRMED_FLIGHTS_TYPE_CHAIRS.NUMBER_PASSANGERS%TYPE := 0;
+                TOTAL_REGISTRO NUMBER := 0;
+                VUELO_CONFIRMADO NUMBER := 0;
+                PASAJERO_CONFIRMADO NUMBER := 0;
+                    
+        BEGIN
+            
+            SELECT COUNT(*) INTO VUELO_CONFIRMADO
+            FROM CONFIRMED_FLIGHTS
+            WHERE ID = ID_CONFIRMED_FLIGHTS and STATE_AIRPLANE_CONFIRMATION_ID = 4;
+            
+            IF (VUELO_CONFIRMADO = 1)
+            THEN
+                
+                SELECT COUNT(*) INTO PASAJERO_CONFIRMADO
+                FROM CHECK_IN
+                WHERE CONFIRMED_FLIGHT_ID = ID_CONFIRMED_FLIGHTS AND PASSANGER_ID =  ID_PASSANGER AND TYPE_CHAIR_ID IS NOT NULL;
+                
+                IF (PASAJERO_CONFIRMADO = 0)
+                THEN
+                                                                    
+                      SELECT CHAIRS INTO TOTAL_ASIENTOS
+                      FROM ENROLLMENT EN INNER JOIN CONFIRMED_FLIGHTS CF ON EN.REGISTRATION = CF.ENROLLMENT_REGISTRATION
+                      WHERE CF.ID = ID_CONFIRMED_FLIGHTS;
+                      
+                      DBMS_OUTPUT.PUT_LINE(TOTAL_ASIENTOS); 
+          
+                      SELECT NVL(SUM(NUMBER_PASSANGERS),0) INTO TOTAL_PASAJEROS
+                      FROM CONFIRMED_FLIGHTS_TYPE_CHAIRS
+                      WHERE CONFIRMED_FLIGHTS_ID = ID_CONFIRMED_FLIGHTS;
+                      
+                      DBMS_OUTPUT.PUT_LINE(TOTAL_PASAJEROS); 
+                                
+                      IF (TOTAL_ASIENTOS >= TOTAL_PASAJEROS )
+                      THEN
+                          
+                          DBMS_OUTPUT.PUT_LINE('primero'); 
+                      
+                          IF (TOTAL_PASAJEROS = 0)
+                          THEN
+                              DBMS_OUTPUT.PUT_LINE('segundo'); 
+                               INSERT INTO CONFIRMED_FLIGHTS_TYPE_CHAIRS (CONFIRMED_FLIGHTS_ID,TYPE_CHAIRS_ID ,NUMBER_PASSANGERS )
+                               VALUES (ID_CONFIRMED_FLIGHTS, ID_TYPE_CHAIRS, 1);
+                          ELSE
+                             DBMS_OUTPUT.PUT_LINE('tercero');
+                             SELECT COUNT(*) INTO TOTAL_REGISTRO
+                             FROM CONFIRMED_FLIGHTS_TYPE_CHAIRS 
+                             WHERE CONFIRMED_FLIGHTS_ID = ID_CONFIRMED_FLIGHTS AND  TYPE_CHAIRS_ID =  ID_TYPE_CHAIRS;
+                          
+                             DBMS_OUTPUT.PUT_LINE(TOTAL_REGISTRO);
+                              IF (TOTAL_REGISTRO > 0)
+                              THEN
+                                     DBMS_OUTPUT.PUT_LINE('cuarto');
+                                  UPDATE CONFIRMED_FLIGHTS_TYPE_CHAIRS SET NUMBER_PASSANGERS = NUMBER_PASSANGERS + 1
+                                  WHERE CONFIRMED_FLIGHTS_ID = ID_CONFIRMED_FLIGHTS AND  TYPE_CHAIRS_ID =  ID_TYPE_CHAIRS;
+                              ELSE  
+                              DBMS_OUTPUT.PUT_LINE('quinto');
+                                INSERT INTO CONFIRMED_FLIGHTS_TYPE_CHAIRS (CONFIRMED_FLIGHTS_ID,TYPE_CHAIRS_ID ,NUMBER_PASSANGERS )
+                                VALUES (ID_CONFIRMED_FLIGHTS, ID_TYPE_CHAIRS, 1);
+                              END IF;
+                          END IF;                
+                          
+                          UPDATE CHECK_IN
+                          SET TYPE_CHAIR_ID =  ID_TYPE_CHAIRS
+                          WHERE PASSANGER_ID = ID_PASSANGER AND CONFIRMED_FLIGHT_ID = ID_CONFIRMED_FLIGHTS ;
+                  
+                          COMMIT;                    
+                
+                        ELSE
+                           DBMS_OUTPUT.PUT_LINE('Ya no hay cupo en el avion. Esta lleno.');
+                        END IF;   
+                ELSE
+                  DBMS_OUTPUT.PUT_LINE('Este pasajero ya fue confirmado.');
+                END IF;                              
+                
+            ELSE
+              DBMS_OUTPUT.PUT_LINE('El id de confirmacion no esta confirmado');
+            END IF ;
+                                                                                                                                          
+       END;
+                                  
+    END;
+
+
+
+
+-------SOLUCION PUNTO 4
+
+CREATE OR REPLACE VIEW PERSON_ASSIGNED_FLIGHT
+AS 
+
+select CF.ID CONFIRMATION_ID,ENROLLMENT_REGISTRATION,EMP.NAME, EMP.LAST_NAME, EMPT.TYPE CARGO
+from CONFIRMED_FLIGHTS CF INNER JOIN EMPLOYEE EMP ON CF.PILOT_ID = EMP.ID
+INNER JOIN EMPLOYEES_TYPE EMPT ON EMP.EMPLOYEE_TYPE_ID = EMPT.ID 
+UNION ALL
+
+select CF.ID CONFIRMATION_ID,ENROLLMENT_REGISTRATION,EMP.NAME, EMP.LAST_NAME, EMPT.TYPE
+from CONFIRMED_FLIGHTS CF INNER JOIN EMPLOYEE EMP ON CF.COP_PILOT_ID = EMP.ID
+INNER JOIN EMPLOYEES_TYPE EMPT ON EMP.EMPLOYEE_TYPE_ID = EMPT.ID 
+
+UNION ALL
+select CF.ID CONFIRMATION_ID,ENROLLMENT_REGISTRATION,EMP.NAME, EMP.LAST_NAME, EMPT.TYPE
+from CONFIRMED_FLIGHTS CF INNER JOIN ASSIGNED_CREW AC ON CF.ID = AC.CONFIRMED_FLIGHTS_ID
+INNER JOIN EMPLOYEE EMP ON AC.CREW_ID = EMP.ID
+INNER JOIN EMPLOYEES_TYPE EMPT ON EMP.EMPLOYEE_TYPE_ID = EMPT.ID
+
+
+
+SOLUCION PUNTO 5
+
+
+CREATE OR REPLACE VIEW SCHEDULED_FLIGHTS
+AS 
+
+SELECT AI.NAME AIRPORT_ORIGIN, AI2.NAME AIRPORT_TARGET,CF.ENROLLMENT_REGISTRATION,TIME_ESTIMATE_DEPARTURE, TIME_NOW_DEPARTURE
+FROM CONFIRMED_FLIGHTS  CF INNER JOIN  ROUTE_ITINERARY RI ON CF.ID = RI.CONFIRMED_FLIGHTS_ID
+INNER JOIN AIRPORT_ROUTES AR ON RI.AIRPORT_ROUTES_ID = AR.ID
+INNER JOIN AIRPORT AI ON AR.AIRPORT_ORIGIN_ID = AI.ID
+INNER JOIN AIRPORT AI2 ON AR.AIRPORT_TARGET_ID = AI2.ID
+WHERE (SYSDATE <= TIME_ESTIMATE_DEPARTURE) AND ((SYSDATE + interval '336' HOUR) > TIME_ESTIMATE_DEPARTURE)
+
+
+PUNTO 6
+
+EXPLAIN PLAN SET STATEMENT_ID = 'BAD1' FOR 
+SELECT * FROM AIRPLANE_AIRPORT_DEPARTURE ;
+SELECT * FROM TABLE(DBMS_XPLAN.DISPLAY('PLAN_TABLE', 'BAD1','TYPICAL'));
+
+EXPLAIN PLAN SET STATEMENT_ID = 'BAD2' FOR 
+SELECT * FROM PERSON_ASSIGNED_FLIGHT;
+SELECT * FROM TABLE(DBMS_XPLAN.DISPLAY('PLAN_TABLE', 'BAD2','TYPICAL'));
+
+
+EXPLAIN PLAN SET STATEMENT_ID = 'BAD3' FOR 
+SELECT * FROM SCHEDULED_FLIGHTS;
+SELECT * FROM TABLE(DBMS_XPLAN.DISPLAY('PLAN_TABLE', 'BAD3','TYPICAL'));
 
