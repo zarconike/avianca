@@ -36,6 +36,9 @@ create or replace PROCEDURE Asignar_Tripulacion_Vuelo
 AS
 
     BEGIN 
+    
+        -- declarando variables necesarias en el procedimiento
+        
         DECLARE CONFIRMACION_ID AIRPLANE_AIRPORT_DEPARTURE.CONFIRMATION_ID%TYPE := 0;
                 PILOTO_ID EMPLOYEE.ID%TYPE := 0;
                 COPILOTO_ID EMPLOYEE.ID%TYPE:= 0;
@@ -55,21 +58,27 @@ AS
          
         BEGIN
             
+            -- se pretende garantizar que la vista retorne datos
             SELECT COUNT(*) INTO TOTAL_AAD
             FROM  AIRPLANE_AIRPORT_DEPARTURE;
             
             IF (TOTAL_AAD >0)
             THEN
             
+                    -- almacenamos en variables el primer registro de la ejecucion de la vista
                         SELECT  NVL(CHAIRS,0),NVL(DURATION_REAL,0), NVL(CONFIRMATION_ID,0),NVL(TIME_ESTIMATE_DEPARTURE,SYSDATE), NVL(REGISTRATION,'') INTO TOTAL_ASIENTOS, TOTAL_DURATION, CONFIRMACION_ID,FECHA_ESTIMADA_SALIDA, NUMERO_VUELO
                         FROM AIRPLANE_AIRPORT_DEPARTURE
                         FETCH FIRST 1 ROWS ONLY;
                                              
                         DBMS_OUTPUT.PUT_LINE(TOTAL_ASIENTOS || TOTAL_DURATION || CONFIRMACION_ID ); 
-                                                
+                          
+                          
+                         --- se valida si la hora estimada de llegada es menor a 3 horas con respecto a la fecha actual. 
+                         --- son 5 pero la vista ya viene filtrada con 2 horas
                         IF ((FECHA_ESTIMADA_SALIDA - interval '3' HOUR) > SYSDATE OR FECHA_ESTIMADA_SALIDA = NULL)
                         THEN
-                        
+                                
+                                --obteniendo la ciudad para posteriormente buscar el piloto
                                 SELECT CITY_ID INTO CIUDAD_ID
                                 FROM AIRPORT
                                 WHERE ID = (SELECT  AIRPORT_ORIGIN_ID
@@ -252,6 +261,7 @@ AS
                     
         BEGIN
             
+            -- garantizando que el vuelo este confirmado
             SELECT COUNT(*) INTO VUELO_CONFIRMADO
             FROM CONFIRMED_FLIGHTS
             WHERE ID = ID_CONFIRMED_FLIGHTS and STATE_AIRPLANE_CONFIRMATION_ID = 4;
@@ -277,7 +287,9 @@ AS
                       WHERE CONFIRMED_FLIGHTS_ID = ID_CONFIRMED_FLIGHTS;
                       
                       DBMS_OUTPUT.PUT_LINE(TOTAL_PASAJEROS); 
-                                
+                       
+                       ---validando que el total de sillas del avion no sea inferior a la demanda del registro de pasajeros
+                       
                       IF (TOTAL_ASIENTOS >= TOTAL_PASAJEROS )
                       THEN
                           
