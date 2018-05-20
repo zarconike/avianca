@@ -394,3 +394,12 @@ EXPLAIN PLAN SET STATEMENT_ID = 'BAD3' FOR
 SELECT * FROM SCHEDULED_FLIGHTS;
 SELECT * FROM TABLE(DBMS_XPLAN.DISPLAY('PLAN_TABLE', 'BAD3','TYPICAL'));
 
+
+
+--- PUNTO 7
+
+El video fue cargado a dropbox y se compartio la carpeta a su correo electronico
+
+----PUNTO 8
+
+El video fue cargado a dropbox y se compartio la carpeta a su correo electronico
