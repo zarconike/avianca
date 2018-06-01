@@ -1,0 +1,57 @@
+#plsql.execute <<-SQL
+create or replace PROCEDURE CALCULAR_SIMULACION  (tasaEA decimal, total_cuotas NUMBER, prestamo decimal)
+AS
+
+BEGIN 
+    
+    DECLARE n decimal(15,4) := 0;
+    d decimal(15,4) := 0;
+    tasa decimal(15,4) := 0;
+    cuota_mensual decimal(15,2) := 0;
+    abono_interes decimal(15,2) := 0;
+    abono_capital decimal(15,2) := 0;
+    Nuevo_saldo decimal(15,2) := 0;
+    saldo_actual decimal(15,2) := 0; 
+    saldo decimal(15,2) := 0; 
+    cuotas_restantes number := 0;
+    
+    BEGIN
+      
+       DELETE FROM amortizacion;       
+       
+       tasa := (1 + (tasaEA / 100)) ** (30 / 360) - 1 ;
+       n := tasa * prestamo;
+       d := 1 - (1 + tasa) ** (-total_cuotas);
+       cuota_mensual := n / d;
+       
+       FOR indx IN 0 .. total_cuotas- 1
+       LOOP
+        
+         saldo_actual := prestamo -  saldo_actual;      
+
+         abono_interes := tasa * saldo_actual ;
+         abono_capital := cuota_mensual - abono_interes;
+         
+         Nuevo_saldo := saldo_actual - abono_capital;
+         cuotas_restantes := total_cuotas - indx;
+         
+         INSERT INTO AMORTIZACION (NUMERO_CUOTA,CUOTA_MENSUAL, ABONO_CAPITAL,ABONO_INTERES,SALDO ) 
+         VALUES (cuotas_restantes,cuota_mensual, abono_capital,abono_interes,Nuevo_saldo );
+       END LOOP; 
+     
+     END ;         
+END;
+#SQL
+
+#plsql.execute <<-SQL
+CREATE OR REPLACE VIEW PLAN_AMORTIZACION
+AS 
+
+select NUMERO_CUOTA,CUOTA_MENSUAL ,ABONO_CAPITAL ,ABONO_INTERES ,SALDO , CAST(COUNT(ABONO_INTERES) OVER (PARTITION BY CUOTA_MENSUAL) AS DECIMAL(15,2)) total_interes
+from amortizacion
+ORDER BY NUMERO_CUOTA;
+#SQL
+
+#plsql.execute <<-SQL
+# Codigo va acá
+#SQL
